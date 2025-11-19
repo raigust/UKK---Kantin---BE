@@ -1,0 +1,152 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+//
+// ENUMS
+//
+enum Role {
+  admin_stan
+  siswa
+}
+
+enum JenisMenu {
+  makanan
+  minuman
+}
+
+enum StatusTransaksi {
+  belum_dikonfirm
+  dimasak
+  diantar
+  sampai
+}
+
+//
+// USERS - login untuk admin stan dan siswa
+//
+model users {
+  id       Int    @id @default(autoincrement())
+  username String @unique
+  password String
+  role     Role
+
+  // Relasi
+  siswa   siswa?
+  stan    stan?
+}
+
+//
+// SISWA - data profil siswa
+//
+model siswa {
+  id          Int     @id @default(autoincrement())
+  nama_siswa  String
+  alamat      String
+  telp        String
+  foto        String?
+  id_user     Int     @unique
+
+  // Relasi
+  user        users   @relation(fields: [id_user], references: [id])
+  transaksi   transaksi[]
+}
+
+//
+// STAN - data stand kantin
+//
+model stan {
+  id          Int     @id @default(autoincrement())
+  nama_stan   String
+  nama_pemilik String
+  telp        String
+  id_user     Int     @unique
+
+  // Relasi
+  user        users    @relation(fields: [id_user], references: [id])
+  menu        menu[]
+  transaksi   transaksi[]
+  diskon          diskon[]
+}
+
+//
+// MENU - makanan & minuman per stan
+//
+model menu {
+  id           Int        @id @default(autoincrement())
+  nama_makanan String
+  harga        Float
+  jenis        JenisMenu
+  foto         String?
+  deskripsi    String?
+  id_stan      Int
+
+  // Relasi
+  stan          stan          @relation(fields: [id_stan], references: [id])
+  detail        detail_transaksi[]
+  menu_diskon   menu_diskon[]
+}
+
+//
+// DISKON - data diskon
+//
+model diskon {
+  id             Int      @id @default(autoincrement())
+  nama_diskon    String
+  persentase_diskon Float
+  tanggal_awal   DateTime
+  tanggal_akhir  DateTime
+
+  id_stan          Int
+  stan             stan          @relation(fields: [id_stan], references: [id])
+
+  menu_diskon    menu_diskon[]
+}
+
+//
+// MENU_DISKON - relasi M-to-M antara MENU dan DISKON
+//
+model menu_diskon {
+  id        Int   @id @default(autoincrement())
+  id_menu   Int
+  id_diskon Int
+
+  menu   menu   @relation(fields: [id_menu], references: [id])
+  diskon diskon @relation(fields: [id_diskon], references: [id])
+}
+
+//
+// TRANSAKSI - header transaksi
+//
+model transaksi {
+  id        Int             @id @default(autoincrement())
+  tanggal   DateTime
+  id_stan   Int
+  id_siswa  Int
+  status    StatusTransaksi @default(belum_dikonfirm)
+
+  // Relasi
+  stan      stan        @relation(fields: [id_stan], references: [id])
+  siswa     siswa       @relation(fields: [id_siswa], references: [id])
+  detail    detail_transaksi[]
+}
+
+//
+// DETAIL TRANSAKSI - item pesanan
+//
+model detail_transaksi {
+  id            Int     @id @default(autoincrement())
+  id_transaksi  Int
+  id_menu       Int
+  qty           Int
+  harga_beli    Float
+
+  // Relasi
+  transaksi transaksi @relation(fields: [id_transaksi], references: [id])
+  menu       menu     @relation(fields: [id_menu], references: [id])
+}
