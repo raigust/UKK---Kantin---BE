@@ -2,7 +2,10 @@ import { Request, Response } from "express";
 import { JenisMenu, PrismaClient } from "@prisma/client";
 import dayjs from "dayjs";
 import fs from "fs";
+import dotenv from "dotenv"
+dotenv.config()
 import { BASE_URL } from "../global";
+import { error } from "console";
 
 const prisma = new PrismaClient({ errorFormat: "pretty" });
 
@@ -230,46 +233,17 @@ export const getDiskonByStan = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteDiskon = async (req: Request, res: Response) => {
+export const hapusDiskon = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params; // id diskon
+    const { id } = req.params;
     const user = (req as any).users;
 
-    // Hanya admin stan
-    if (user.role !== "admin_stan") {
-      return res.status(403).json({
-        status: false,
-        message: "Anda bukan admin stan",
-      });
-    }
-
-    // Cek stan pemilik berdasarkan user login
     const stan = await prisma.stan.findFirst({
       where: { id_user: user.id },
     });
 
-    if (!stan) {
-      return res.status(404).json({
-        status: false,
-        message: "Stan tidak ditemukan",
-      });
-    }
-
-    // Cek apakah diskon benar-benar milik stan ini
     const diskon = await prisma.diskon.findFirst({
-      where: {
-        id: Number(id),
-        menu_diskon: {
-          some: {
-            menu: {
-              id_stan: stan.id,
-            },
-          },
-        },
-      },
-      include: {
-        menu_diskon: true,
-      }
+      where: { id: Number(id), id_stan: stan?.id },
     });
 
     if (!diskon) {
@@ -279,14 +253,6 @@ export const deleteDiskon = async (req: Request, res: Response) => {
       });
     }
 
-    // Hapus relasi dari menu_diskon
-    await prisma.menu_diskon.deleteMany({
-      where: {
-        id_diskon: Number(id),
-      },
-    });
-
-    // Hapus diskon
     await prisma.diskon.delete({
       where: { id: Number(id) },
     });
@@ -295,12 +261,8 @@ export const deleteDiskon = async (req: Request, res: Response) => {
       status: true,
       message: "Diskon berhasil dihapus",
     });
-
-  } catch (error) {
-    return res.status(400).json({
-      status: false,
-      message: `Terjadi suatu kesalahan: ${error}`,
-    });
+  } catch (err) {
+    return res.status(400).json({ status: false, message: `${err}` });
   }
 };
 

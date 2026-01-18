@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
 import { JenisMenu, PrismaClient } from "@prisma/client";
+import { StatusTransaksi } from "@prisma/client";
+import dotenv from "dotenv"
+dotenv.config()
 import fs from "fs";
 import { BASE_URL } from "../global";
 
@@ -183,7 +186,16 @@ export const getSiswaHistory = async (req: Request, res: Response) => {
     });
 
     const history = await prisma.transaksi.findMany({
-      where: { id_siswa: siswa!.id },
+      where: {
+        id_siswa: siswa!.id,
+        status: {
+          in: [
+            StatusTransaksi.belum_dikonfirm,
+            StatusTransaksi.dimasak,
+            StatusTransaksi.diantar,
+          ],
+        },
+      },
       include: {
         stan: true,
         detail: {
@@ -192,6 +204,47 @@ export const getSiswaHistory = async (req: Request, res: Response) => {
       },
       orderBy: { tanggal: "desc" },
     });
+
+
+    return res.status(200).json({
+      status: true,
+      message: "Riwayat transaksi siswa.",
+      data: history,
+    });
+  } catch (error) {
+    return res.status(500).json({ status: false, message: `Error: ${error}` });
+  }
+};
+export const getSiswaOrderanSelesai = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).users;
+
+    if (user.role !== "siswa") {
+      return res.status(403).json({ status: false, message: "Anda bukan siswa." });
+    }
+
+    const siswa = await prisma.siswa.findFirst({
+      where: { id_user: user.id },
+    });
+
+    const history = await prisma.transaksi.findMany({
+      where: {
+        id_siswa: siswa!.id,
+        status: {
+          in: [
+            StatusTransaksi.sampai
+          ],
+        },
+      },
+      include: {
+        stan: true,
+        detail: {
+          include: { menu: true },
+        },
+      },
+      orderBy: { tanggal: "desc" },
+    });
+
 
     return res.status(200).json({
       status: true,
@@ -312,6 +365,10 @@ export const getPemasukanByBulan = async (req: Request, res: Response) => {
       });
     }
 
+    // 🔥 FIX DATE RANGE
+    const startDate = new Date(Number(tahun), Number(bulan) - 1, 1);
+    const endDate = new Date(Number(tahun), Number(bulan), 1);
+
     // ambil semua detail transaksi bulan itu
     const detail = await prisma.detail_transaksi.findMany({
       where: {
@@ -319,15 +376,15 @@ export const getPemasukanByBulan = async (req: Request, res: Response) => {
           id_stan: stan.id,
           status: "sampai",
           tanggal: {
-            gte: new Date(`${tahun}-${bulan}-01`),
-            lt: new Date(`${tahun}-${Number(bulan) + 1}-01`),
+            gte: startDate,
+            lt: endDate,
           },
         },
       },
       select: {
         qty: true,
         harga_beli: true,
-      }
+      },
     });
 
     // hitung total pemasukan = Σ(qty * harga_beli)
@@ -385,12 +442,16 @@ export const getOrderByMonth = async (req: Request, res: Response) => {
       });
     }
 
+    // 🔥 FIX DATE RANGE
+    const startDate = new Date(Number(tahun), Number(bulan) - 1, 1);
+    const endDate = new Date(Number(tahun), Number(bulan), 1);
+
     const orders = await prisma.transaksi.findMany({
       where: {
         id_stan: stan.id,
         tanggal: {
-          gte: new Date(`${tahun}-${bulan}-01`),
-          lt: new Date(`${tahun}-${Number(bulan) + 1}-01`),
+          gte: startDate,
+          lt: endDate,
         },
       },
       include: {
@@ -431,5 +492,94 @@ export const getOrderByMonth = async (req: Request, res: Response) => {
     });
   }
 };
+
+
+export const cetakNotaTransaksi = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).users;
+
+    // hanya siswa yang bisa cetak nota
+    if (user.role !== "siswa") {
+      return res.status(403).json({
+        status: false,
+        message: "Hanya siswa yang bisa mencetak nota.",
+      });
+    }
+
+    const { id } = req.params; // id transaksi
+
+    // ambil id_siswa dari token
+    const siswa = await prisma.siswa.findFirst({
+      where: { id_user: user.id }
+    });
+
+    if (!siswa) {
+      return res.status(404).json({
+        status: false,
+        message: "Data siswa tidak ditemukan.",
+      });
+    }
+
+    // cari transaksi berdasarkan id + pemiliknya harus siswa ini
+    const transaksi = await prisma.transaksi.findFirst({
+      where: {
+        id: Number(id),
+        id_siswa: siswa.id,  // ensure transaksi milik siswa yang login
+      },
+      include: {
+        stan: true,
+        siswa: true,
+        detail: {
+          include: {
+            menu: true
+          }
+        }
+      }
+    });
+
+    if (!transaksi) {
+      return res.status(404).json({
+        status: false,
+        message: "Transaksi tidak ditemukan atau bukan milik kamu.",
+      });
+    }
+
+    // Hitung total belanja
+    const total = transaksi.detail.reduce((acc, item) => {
+      return acc + item.harga_beli * item.qty;
+    }, 0);
+
+    return res.status(200).json({
+      status: true,
+      message: "Nota transaksi berhasil diambil.",
+      nota: {
+        id_transaksi: transaksi.id,
+        tanggal: transaksi.tanggal,
+        stan: transaksi.stan.nama_stan,
+        pemilik_stan: transaksi.stan.nama_pemilik,
+        telp_stan: transaksi.stan.telp,
+        siswa: transaksi.siswa.nama_siswa,
+        alamat_siswa: transaksi.siswa.alamat,
+        telp_siswa: transaksi.siswa.telp,
+        status: transaksi.status,
+        items: transaksi.detail.map(d => ({
+          nama_menu: d.menu.nama_makanan,
+          qty: d.qty,
+          harga_satuan: d.harga_beli,
+          total: d.harga_beli * d.qty
+        })),
+        total_bayar: total
+      }
+    });
+
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      status: false,
+      message: `Error: ${error}`,
+    });
+  }
+};
+
 
 

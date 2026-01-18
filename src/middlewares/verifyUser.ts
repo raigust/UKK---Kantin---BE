@@ -36,23 +36,13 @@ const registerUserStanSchema = Joi.object({
 
 
 const editUserSchema = Joi.object({
-    // USERS TABLE
-    username: Joi.string().optional(),
-    password: Joi.string().min(3).optional(),
-    role: Joi.string().valid('siswa', 'admin_stan').optional(),
+    username: Joi.string().optional(),        
+    password: Joi.string().min(3).optional(), 
 
-    // SISWA TABLE
-    nama_siswa: Joi.string().optional(),
-    alamat: Joi.string().optional(),
-    telp: Joi.string().optional(),
-    foto: Joi.allow().optional(),
-
-    // STAN TABLE
     nama_stan: Joi.string().optional(),
     nama_pemilik: Joi.string().optional(),
-    telp_stan: Joi.string().optional(), 
-
-    user: Joi.forbidden() 
+    telp: Joi.string().optional(),
+    user: Joi.forbidden()
 });
 
 const editUserSiswa = Joi.object({

@@ -18,6 +18,7 @@ app.post(`/addsiswa`, [verifyToken, verifyRole(["admin_stan"]), uploadFile.singl
 app.put(`/editsiswa/:id`, [verifyToken, verifyRole(["admin_stan"]), uploadFile.single("foto"), verifyEditUserSiswa], updateUser);
 
 app.get(`/getsiswa`, [verifyToken, verifyRole(["admin_stan"])], getAllSiswa);
+app.get(`/getstan`, [verifyToken, verifyRole(["siswa"])], getAllAdminStan);
 app.post(`/siswa`, uploadFile.single("foto"), [verifyRegisterSiswa], createUser);
 app.put(`/siswa/:id`, [verifyToken, verifyRole(["siswa"]), uploadFile.single("foto"), verifyEditUserSiswa], updateUser);
 

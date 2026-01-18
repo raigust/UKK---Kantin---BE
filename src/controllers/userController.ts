@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { PrismaClient, Role } from "@prisma/client";
 import { sign } from "jsonwebtoken";
 import md5 from "md5";
+import dotenv from "dotenv"
+dotenv.config()
 import fs from "fs";
 import { BASE_URL, SECRET } from "../global";
 const {v4: uuidv4} = require("uuid");
@@ -384,37 +386,55 @@ export const authentication = async (req: Request, res: Response) => {
     const findUser = await prisma.users.findFirst({
       where: {
         username,
-        password: md5(password)
-      }
+        password: md5(password),
+      },
+      include: {
+        stan: true,   // 🔥 ambil data stan
+        siswa: true,  // 🔥 ambil data siswa
+      },
     });
 
     if (!findUser) {
       return res.status(200).json({
         status: false,
         logged: false,
-        message: "Username or password incorrect"
+        message: "Username or password incorrect",
       });
     }
 
-    const tokenPayload = {
+    // 🔥 Payload token
+    let tokenPayload: any = {
       id: findUser.id,
       username: findUser.username,
-      role: findUser.role
+      role: findUser.role,
     };
 
-    const token = sign(JSON.stringify(tokenPayload), SECRET || "token");
+    // 🔥 Kalau admin stan, masukin data stan
+    if (findUser.role === "admin_stan" && findUser.stan) {
+      tokenPayload.id_stan = findUser.stan.id;
+      tokenPayload.nama_stan = findUser.stan.nama_stan;
+    }
+    if (findUser.role === "siswa" && findUser.siswa) {
+      tokenPayload.id_siswa = findUser.siswa.id;
+      tokenPayload.nama_siswa = findUser.siswa.nama_siswa;
+    }
+
+    const token = sign(tokenPayload, SECRET || "token", {
+      expiresIn: "1d",
+    });
 
     return res.status(200).json({
       status: true,
       logged: true,
       message: "Login successful",
       token,
-      data: tokenPayload
+      data: findUser, // 🔥 kirim FULL user + stan + siswa
     });
   } catch (error) {
     return res.status(400).json({
       status: false,
-      message: `${error}`
+      message: `${error}`,
     });
   }
 };
+

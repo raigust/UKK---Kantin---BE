@@ -1,5 +1,5 @@
 import express from "express";
-import { getAllMenus, tambahMenu, hapusMenu, updateMenu, detailMenu, getAllMenusForSiswa} from "../controllers/menuController"
+import { getAllMenus, tambahMenu, hapusMenu, updateMenu, detailMenu, getAllMenusForSiswa, getMenuByStan} from "../controllers/menuController"
 import { verifyToken, verifyRole } from "../middlewares/authorization";
 import { validateFilterMenu, validateTambahMenu, validateUpdateMenu} from "../middlewares/menuValidation"
 import uploadFile from "../middlewares/menuUpload"
@@ -13,6 +13,8 @@ app.post(`/`,[verifyToken, verifyRole(["admin_stan"]), uploadFile.single("foto")
 app.put(`/:id`,[verifyToken, verifyRole(["admin_stan"]), uploadFile.single("foto"), validateUpdateMenu],updateMenu);
 app.delete(`/:id`,[verifyToken, verifyRole(["admin_stan"])],hapusMenu);
 app.get(`/detail/:id`,[verifyToken],detailMenu);
+
+app.get(`/getmenubystan/:id`,[verifyToken], getMenuByStan);
 
 
 export default app;

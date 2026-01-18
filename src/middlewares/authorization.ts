@@ -5,8 +5,11 @@ import { SECRET } from "../global";
 interface JwtPayload {
   id: number;
   username: string;
-  password: string;
   role: string;
+  id_stan?: number;
+  nama_stan?: string;
+  nama_siswa?: string;
+  id_siswa?: number;
 }
 
 export const verifyToken = (

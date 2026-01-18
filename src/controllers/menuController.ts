@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { JenisMenu, PrismaClient } from "@prisma/client";
 import fs from "fs";
+import dotenv from "dotenv"
+dotenv.config()
 import { BASE_URL } from "../global";
 
 const prisma = new PrismaClient({ errorFormat: "pretty" });
@@ -34,7 +36,7 @@ export const getAllMenus = async (req: Request, res: Response) => {
               contains: search.toString(),
             }
           : undefined,
-
+ 
         jenis: jenis
           ? {
               equals: jenis.toString() as JenisMenu
@@ -198,7 +200,7 @@ export const updateMenu = async (req: Request, res: Response) => {
       data: {
         nama_makanan: nama_makanan || menu.nama_makanan,
         harga: harga ? Number(harga) : menu.harga,
-        jenis: jenis ? jenis.toUpperCase() : menu.jenis,
+        jenis: jenis ? jenis : menu.jenis,
         deskripsi: deskripsi || menu.deskripsi,
         foto: filename,
       },
@@ -352,6 +354,74 @@ export const getAllMenusForSiswa = async (req: Request, res: Response) => {
     return res.status(400).json({
       status: "error",
       message: `Terjadi sebuah kesalahan: ${error}`,
+    });
+  }
+};
+
+export const getMenuByStan = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { search, jenis, harga_min, harga_max } = req.query;
+    const user = (req as any).users;
+
+    // Ambil stan berdasarkan user token
+    const stan = await prisma.stan.findFirst({
+      where: { id: Number(id) },
+    });
+
+    if (!stan) {
+      return res.status(404).json({
+        status: false,
+        message: "Stan tidak ditemukan untuk user ini",
+      });
+    }
+
+    const allMenus = await prisma.menu.findMany({
+      where: {
+        id_stan: stan.id,
+
+        nama_makanan: search
+          ? {
+              contains: search.toString(),
+            }
+          : undefined,
+ 
+        jenis: jenis
+          ? {
+              equals: jenis.toString() as JenisMenu
+            }
+          : undefined,
+
+        harga:
+          harga_min || harga_max
+            ? {
+                gte: harga_min ? Number(harga_min) : undefined,
+                lte: harga_max ? Number(harga_max) : undefined,
+              }
+            : undefined,
+      },
+
+      include: {
+        stan: {
+          select: {
+            id: true,
+            nama_stan: true,
+          },
+        },
+      },
+
+      orderBy: { nama_makanan: "asc" },
+    });
+
+    return res.status(200).json({
+      status: true,
+      message: "Menu berhasil ditampilkan",
+      data: allMenus,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      status: false,
+      message: `Error: ${err}`,
     });
   }
 };
